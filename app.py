@@ -293,7 +293,7 @@ if uploaded_file is not None:
     
     if st.button("🚀 Run AI Analysis", type="primary", use_container_width=True):
         try:
-            # Load model
+            # Load model + params
             with st.spinner("Loading AI model..."):
                 model = load_model_file(selected_model)
                 mean, std = load_standardization_params()
@@ -302,9 +302,14 @@ if uploaded_file is not None:
             with st.spinner("Preprocessing..."):
                 sequences, info = processor.preprocess_for_prediction(str(temp_path), mean, std)
             
-            # Predict
+            # Predict via external inference server
             with st.spinner("Running inference..."):
-                predictor = BowelSoundPredictor(model, threshold)
+                predictor = BowelSoundPredictor(
+                    model,
+                    threshold,
+                    model_type=selected_model,
+                    server_url="http://127.0.0.1:8502/predict"
+                )
                 predictions = predictor.predict(sequences, threshold)
                 stats = predictor.get_detection_stats(predictions)
             
