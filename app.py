@@ -655,49 +655,121 @@ if uploaded_file is not None:
         # =====================================================================
         
         with tab2:
-            st.markdown("""
-            <div class="placeholder-content">
-                <div class="placeholder-icon">🔬</div>
-                <div class="placeholder-title">Signal Processing Module</div>
-                <div class="placeholder-description">
-                    This section will contain advanced signal processing features:<br/><br/>
-                    • Frequency domain analysis<br/>
-                    • Time-frequency representations<br/>
-                    • Filter design and application<br/>
-                    • Noise reduction algorithms<br/>
-                    • Feature extraction visualizations<br/><br/>
-                    <strong>Status:</strong> Under Development
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("### 🔬 Signal Processing Analysis")
+            st.markdown("Advanced acoustic analysis of bowel sound characteristics")
             
-            # Placeholder for future implementation
-            st.info("💡 **Coming Soon**: Advanced signal processing tools for detailed acoustic analysis.")
+            st.markdown("---")
             
-            # Example structure for future implementation
-            with st.expander("🔧 Planned Features", expanded=False):
-                st.markdown("""
-                **Feature Roadmap:**
-                1. **Spectral Analysis**
-                   - Power spectral density
-                   - Spectral centroid tracking
-                   - Bandwidth analysis
+            try:
+                # Import signal processing module
+                from signal_processing import BowelSoundAnalyzer, SignalVisualizer
                 
-                2. **Filtering**
-                   - Adaptive filtering
-                   - Wavelet denoising
-                   - Band-pass filtering
-                
-                3. **Feature Extraction**
-                   - MFCC visualization
-                   - Zero-crossing rate
-                   - Energy contours
-                
-                4. **Time-Frequency Analysis**
-                   - Wavelet transform
-                   - Wigner-Ville distribution
-                   - Gabor analysis
-                """)
+                # Get audio data from session state
+                if st.session_state.audio_data is None:
+                    st.warning("⚠️ No audio data available. Please upload and process audio first.")
+                else:
+                    audio = st.session_state.audio_data['audio']
+                    metadata = st.session_state.audio_data['metadata']
+                    
+                    with st.spinner("🔄 Performing signal processing analysis..."):
+                        # Initialize analyzer
+                        analyzer = BowelSoundAnalyzer(audio, sample_rate=metadata['loaded_sr'])
+                        
+                        # Perform complete analysis
+                        analysis, peaks, envelope = analyzer.analyze()
+                        
+                        # Store in session state
+                        st.session_state['signal_processing_analysis'] = analysis
+                        st.session_state['signal_processing_peaks'] = peaks
+                        st.session_state['signal_processing_envelope'] = envelope
+                    
+                    st.success("✓ Signal processing analysis complete!")
+                    
+                    # Display JSON analysis
+                    st.subheader("📊 Analysis Results")
+                    
+                    col1, col2 = st.columns([3, 1])
+                    
+                    with col1:
+                        st.json(analysis)
+                    
+                    with col2:
+                        # Download JSON
+                        analysis_json = json.dumps(analysis, indent=2)
+                        st.download_button(
+                            "📥 Download JSON",
+                            analysis_json,
+                            f"signal_analysis_{uploaded_file.name.replace('.wav', '.json')}",
+                            mime="application/json"
+                        )
+                    
+                    st.markdown("---")
+                    
+                    # Visualizations
+                    st.subheader("📉 Visual Analysis")
+                    
+                    visualizer = SignalVisualizer()
+                    
+                    # 1. Waveform with peaks
+                    st.markdown("**🎵 Waveform with Detected Events**")
+                    fig_peaks = visualizer.plot_waveform_with_peaks(
+                        audio, metadata['loaded_sr'], peaks, envelope
+                    )
+                    st.pyplot(fig_peaks)
+                    
+                    # 2. Spectrogram
+                    st.markdown("**🌈 Spectrogram (0-2000 Hz)**")
+                    fig_spec = visualizer.plot_spectrogram(audio, metadata['loaded_sr'], max_freq=2000)
+                    st.pyplot(fig_spec)
+                    
+                    # 3. IEI Histogram
+                    st.markdown("**📊 Inter-Event Interval Distribution**")
+                    fig_hist = visualizer.plot_iei_histogram(peaks, metadata['loaded_sr'])
+                    st.pyplot(fig_hist)
+                    
+                    # 4. Poincaré Plot
+                    st.markdown("**📍 Poincaré Plot**")
+                    fig_poincare = visualizer.plot_poincare(peaks, metadata['loaded_sr'])
+                    st.pyplot(fig_poincare)
+                    
+                    st.markdown("---")
+                    
+                    # Export visualizations
+                    st.subheader("💾 Export Visualizations")
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    with col1:
+                        buf1 = io.BytesIO()
+                        fig_peaks.savefig(buf1, format='png', dpi=150, bbox_inches='tight')
+                        buf1.seek(0)
+                        st.download_button("📥 Waveform", buf1, "waveform_peaks.png", "image/png")
+                    
+                    with col2:
+                        buf2 = io.BytesIO()
+                        fig_spec.savefig(buf2, format='png', dpi=150, bbox_inches='tight')
+                        buf2.seek(0)
+                        st.download_button("📥 Spectrogram", buf2, "spectrogram.png", "image/png")
+                    
+                    with col3:
+                        buf3 = io.BytesIO()
+                        fig_hist.savefig(buf3, format='png', dpi=150, bbox_inches='tight')
+                        buf3.seek(0)
+                        st.download_button("📥 Histogram", buf3, "iei_histogram.png", "image/png")
+                    
+                    with col4:
+                        buf4 = io.BytesIO()
+                        fig_poincare.savefig(buf4, format='png', dpi=150, bbox_inches='tight')
+                        buf4.seek(0)
+                        st.download_button("📥 Poincaré", buf4, "poincare.png", "image/png")
+            
+            except ImportError as e:
+                st.error(f"❌ Signal processing module import error: {str(e)}")
+                st.info("💡 Make sure the signal_processing directory exists with all required files.")
+            except Exception as e:
+                st.error(f"❌ Error during signal processing: {str(e)}")
+                import traceback
+                st.error(traceback.format_exc())
         
         
         # =====================================================================
