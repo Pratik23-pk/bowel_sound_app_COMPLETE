@@ -37,26 +37,39 @@ class FeatureExtractor:
         # Total energy
         total_energy = np.sum(audio ** 2)
         
-        # Energy in frequency bands
+        # Energy in frequency bands (avoid 0 Hz)
         bands = {
-            'low': (0, 200),
+            'low': (50, 200),      # Changed from (0, 200)
             'mid': (200, 800),
             'high': (800, 2000)
         }
         
         band_energies = {}
+        nyquist = self.sample_rate / 2
+        
         for band_name, (low, high) in bands.items():
-            # Bandpass filter
-            nyquist = self.sample_rate / 2
-            low_norm = low / nyquist
-            high_norm = min(high / nyquist, 0.99)
+            # Normalize frequencies
+            low_norm = max(low / nyquist, 0.001)  # Ensure > 0
+            high_norm = min(high / nyquist, 0.999)  # Ensure < 1
             
-            b, a = signal.butter(4, [low_norm, high_norm], btype='band')
-            filtered = signal.filtfilt(b, a, audio)
+            # Skip if invalid range
+            if low_norm >= high_norm:
+                band_energies[f'{band_name}_band_energy'] = 0.0
+                band_energies[f'{band_name}_band_pct'] = 0.0
+                continue
             
-            band_energy = np.sum(filtered ** 2)
-            band_energies[f'{band_name}_band_energy'] = float(band_energy)
-            band_energies[f'{band_name}_band_pct'] = float(band_energy / total_energy * 100) if total_energy > 0 else 0
+            try:
+                # Bandpass filter
+                b, a = signal.butter(4, [low_norm, high_norm], btype='band')
+                filtered = signal.filtfilt(b, a, audio)
+                
+                band_energy = np.sum(filtered ** 2)
+                band_energies[f'{band_name}_band_energy'] = float(band_energy)
+                band_energies[f'{band_name}_band_pct'] = float(band_energy / total_energy * 100) if total_energy > 0 else 0
+            except Exception as e:
+                # If filter fails, set energy to 0
+                band_energies[f'{band_name}_band_energy'] = 0.0
+                band_energies[f'{band_name}_band_pct'] = 0.0
         
         # Spectral centroid
         spectral_centroid = librosa.feature.spectral_centroid(y=audio, sr=self.sample_rate)[0]
@@ -198,22 +211,38 @@ class FeatureExtractor:
             Dictionary of band features
         """
         nyquist = self.sample_rate / 2
-        low_norm = target_band[0] / nyquist
-        high_norm = target_band[1] / nyquist
+        low_norm = max(target_band[0] / nyquist, 0.001)  # Ensure > 0
+        high_norm = min(target_band[1] / nyquist, 0.999)  # Ensure < 1
         
-        # Bandpass filter
-        b, a = signal.butter(4, [low_norm, high_norm], btype='band')
-        filtered = signal.filtfilt(b, a, audio)
+        # Validate frequency range
+        if low_norm >= high_norm:
+            return {
+                'target_band_hz': list(target_band),
+                'band_energy': 0.0,
+                'band_energy_pct': 0.0
+            }
         
-        # Calculate energy
-        band_energy = np.sum(filtered ** 2)
-        total_energy = np.sum(audio ** 2)
-        
-        return {
-            'target_band_hz': list(target_band),
-            'band_energy': float(band_energy),
-            'band_energy_pct': float(band_energy / total_energy * 100) if total_energy > 0 else 0
-        }
+        try:
+            # Bandpass filter
+            b, a = signal.butter(4, [low_norm, high_norm], btype='band')
+            filtered = signal.filtfilt(b, a, audio)
+            
+            # Calculate energy
+            band_energy = np.sum(filtered ** 2)
+            total_energy = np.sum(audio ** 2)
+            
+            return {
+                'target_band_hz': list(target_band),
+                'band_energy': float(band_energy),
+                'band_energy_pct': float(band_energy / total_energy * 100) if total_energy > 0 else 0
+            }
+        except Exception as e:
+            # If filter fails, return zeros
+            return {
+                'target_band_hz': list(target_band),
+                'band_energy': 0.0,
+                'band_energy_pct': 0.0
+            }
     
     def extract_irregularity_features(self, peaks: np.ndarray) -> Dict:
         """
